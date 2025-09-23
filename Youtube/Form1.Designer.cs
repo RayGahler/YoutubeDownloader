@@ -33,16 +33,19 @@
             SearchQuery = new TextBox();
             imageList1 = new ImageList(components);
             Thumbnail_Holder = new PictureBox();
-            Download_Button = new Button();
+            DownloadButton = new Button();
             Title = new TextBox();
-            AudioDownload = new Button();
             LoadingText = new TextBox();
+            downloadProgressBar = new ProgressBar();
+            VideoOptions = new ListBox();
+            AudioOptions = new ListBox();
+            DownloadProgress = new TextBox();
             ((System.ComponentModel.ISupportInitialize)Thumbnail_Holder).BeginInit();
             SuspendLayout();
             // 
             // SearchButton
             // 
-            SearchButton.Location = new Point(279, 178);
+            SearchButton.Location = new Point(258, 413);
             SearchButton.Name = "SearchButton";
             SearchButton.Size = new Size(75, 23);
             SearchButton.TabIndex = 0;
@@ -52,7 +55,7 @@
             // 
             // SearchQuery
             // 
-            SearchQuery.Location = new Point(62, 57);
+            SearchQuery.Location = new Point(41, 292);
             SearchQuery.Name = "SearchQuery";
             SearchQuery.Size = new Size(530, 23);
             SearchQuery.TabIndex = 1;
@@ -65,21 +68,21 @@
             // 
             // Thumbnail_Holder
             // 
-            Thumbnail_Holder.Location = new Point(656, 57);
+            Thumbnail_Holder.Location = new Point(605, 28);
             Thumbnail_Holder.Name = "Thumbnail_Holder";
-            Thumbnail_Holder.Size = new Size(430, 280);
+            Thumbnail_Holder.Size = new Size(468, 309);
             Thumbnail_Holder.TabIndex = 2;
             Thumbnail_Holder.TabStop = false;
             // 
-            // Download_Button
+            // DownloadButton
             // 
-            Download_Button.Location = new Point(738, 384);
-            Download_Button.Name = "Download_Button";
-            Download_Button.Size = new Size(75, 23);
-            Download_Button.TabIndex = 4;
-            Download_Button.Text = "Video";
-            Download_Button.UseVisualStyleBackColor = true;
-            Download_Button.Click += Download_Button_Click;
+            DownloadButton.Location = new Point(806, 518);
+            DownloadButton.Name = "DownloadButton";
+            DownloadButton.Size = new Size(75, 23);
+            DownloadButton.TabIndex = 4;
+            DownloadButton.Text = "Download";
+            DownloadButton.UseVisualStyleBackColor = true;
+            DownloadButton.Click += DownloadButton_Click;
             // 
             // Title
             // 
@@ -90,41 +93,71 @@
             Title.Size = new Size(266, 16);
             Title.TabIndex = 5;
             // 
-            // AudioDownload
-            // 
-            AudioDownload.Location = new Point(929, 384);
-            AudioDownload.Name = "AudioDownload";
-            AudioDownload.Size = new Size(75, 23);
-            AudioDownload.TabIndex = 6;
-            AudioDownload.Text = "Audio";
-            AudioDownload.UseVisualStyleBackColor = true;
-            AudioDownload.Click += AudioDownload_Click;
-            // 
             // LoadingText
             // 
             LoadingText.BackColor = SystemColors.Control;
             LoadingText.BorderStyle = BorderStyle.None;
-            LoadingText.Location = new Point(279, 321);
+            LoadingText.Location = new Point(258, 321);
             LoadingText.Name = "LoadingText";
             LoadingText.ReadOnly = true;
             LoadingText.Size = new Size(75, 16);
             LoadingText.TabIndex = 7;
             LoadingText.TextAlign = HorizontalAlignment.Center;
             // 
+            // downloadProgressBar
+            // 
+            downloadProgressBar.Location = new Point(792, 599);
+            downloadProgressBar.Name = "downloadProgressBar";
+            downloadProgressBar.Size = new Size(114, 23);
+            downloadProgressBar.TabIndex = 8;
+            // 
+            // VideoOptions
+            // 
+            VideoOptions.FormattingEnabled = true;
+            VideoOptions.ItemHeight = 15;
+            VideoOptions.Location = new Point(605, 385);
+            VideoOptions.Name = "VideoOptions";
+            VideoOptions.Size = new Size(207, 94);
+            VideoOptions.TabIndex = 9;
+            VideoOptions.SelectedIndexChanged += VideoOptions_SelectedIndexChanged;
+            // 
+            // AudioOptions
+            // 
+            AudioOptions.FormattingEnabled = true;
+            AudioOptions.ItemHeight = 15;
+            AudioOptions.Location = new Point(866, 385);
+            AudioOptions.Name = "AudioOptions";
+            AudioOptions.Size = new Size(207, 94);
+            AudioOptions.TabIndex = 10;
+            AudioOptions.SelectedIndexChanged += AudioOptions_SelectedIndexChanged;
+            // 
+            // DownloadProgress
+            // 
+            DownloadProgress.BorderStyle = BorderStyle.None;
+            DownloadProgress.Location = new Point(714, 577);
+            DownloadProgress.Name = "DownloadProgress";
+            DownloadProgress.ReadOnly = true;
+            DownloadProgress.Size = new Size(266, 16);
+            DownloadProgress.TabIndex = 11;
+            DownloadProgress.TextAlign = HorizontalAlignment.Center;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1098, 649);
+            Controls.Add(DownloadProgress);
+            Controls.Add(AudioOptions);
+            Controls.Add(VideoOptions);
+            Controls.Add(downloadProgressBar);
             Controls.Add(LoadingText);
-            Controls.Add(AudioDownload);
             Controls.Add(Title);
-            Controls.Add(Download_Button);
+            Controls.Add(DownloadButton);
             Controls.Add(Thumbnail_Holder);
             Controls.Add(SearchQuery);
             Controls.Add(SearchButton);
             Name = "Form1";
-            Text = "Form1";
+            Text = "Youtube Downloader";
             Load += Form1_Load;
             ((System.ComponentModel.ISupportInitialize)Thumbnail_Holder).EndInit();
             ResumeLayout(false);
@@ -137,9 +170,12 @@
         private TextBox SearchQuery;
         private ImageList imageList1;
         private PictureBox Thumbnail_Holder;
-        private Button Download_Button;
+        private Button DownloadButton;
         private TextBox Title;
-        private Button AudioDownload;
         private TextBox LoadingText;
+        private ProgressBar downloadProgressBar;
+        private ListBox VideoOptions;
+        private ListBox AudioOptions;
+        private TextBox DownloadProgress;
     }
 }

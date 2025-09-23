@@ -1,13 +1,11 @@
-using System.Diagnostics;
-using System.Net;
 using YoutubeExplode;
 using YoutubeExplode.Common;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-using System.Drawing;
 using YoutubeExplode.Videos;
+using FFMpegCore;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks.Dataflow;
 using YoutubeExplode.Videos.Streams;
 
 namespace Youtube
@@ -16,24 +14,45 @@ namespace Youtube
     {
         private YoutubeClient client = new YoutubeClient();
         private Video CurrentVideo;
+        private int selectedVideoIndex = -1;
+        private int selectedAudioIndex = -1;
+        List<VideoOnlyStreamInfo> videoStreams;
+        List<AudioOnlyStreamInfo> audioStreams;
         public Form1()
         {
             InitializeComponent();
             this.SearchQuery.PlaceholderText = "Enter Youtube Link";
-            this.Download_Button.Visible = false;
-            this.AudioDownload.Visible = false;
+            this.DownloadButton.Visible = false;
             this.Thumbnail_Holder.Visible = false;
             this.Title.Visible = false;
             this.LoadingText.Text = "Loading";
             this.LoadingText.Visible = false;
 
 
+
+
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            if (!Directory.Exists("./Videos"))
+            {
+                Directory.CreateDirectory("Videos");
+            }
+
+            if (!Directory.Exists("./Audios"))
+            {
+                Directory.CreateDirectory("Audios");
+            }
+            if (!Directory.Exists("./Temp"))
+            {
+                Directory.CreateDirectory("Temp");
+            }
 
         }
+
+
+
         private async Task<System.Drawing.Image> getThumbnail(string URL)
         {
 
@@ -41,7 +60,7 @@ namespace Youtube
             HttpClient Hclient = new HttpClient();
             Hclient.BaseAddress = new Uri(URL);
             var Result = await Hclient.GetStreamAsync(Hclient.BaseAddress);
-            WebpDecoder decoder = new WebpDecoder();
+            WebpDecoder decoder = WebpDecoder.Instance;
             WebpConfigurationModule config = new WebpConfigurationModule();
             MemoryStream MemStream = new MemoryStream();
             SixLabors.ImageSharp.Image.Load(Result).SaveAsPng(MemStream);
@@ -53,25 +72,30 @@ namespace Youtube
 
         }
 
+
         private async void SearchButton_Click(object sender, EventArgs e)
         {
-            this.Download_Button.Visible = false;
-            this.AudioDownload.Visible = false;
+            this.DownloadButton.Visible = false;
             this.Thumbnail_Holder.Visible = false;
             this.Title.Visible = false;
             this.LoadingText.Visible = true;
-
+            this.VideoOptions.Items.Clear();
+            this.AudioOptions.Items.Clear();
 
             string SearchQuery = this.SearchQuery.Text;
+
             if (!SearchQuery.Contains(".com") && !SearchQuery.Contains(".be"))
             {
                 this.SearchQuery.Text = "Invalid YouTube Link";
+                this.LoadingText.Visible = false;
+
+                return;
             }
             var video = await client.Videos.GetAsync(SearchQuery);
             this.CurrentVideo = video;
             var ThumbnailDetails = video.Thumbnails.GetWithHighestResolution();
-            string ThumbnailLink = null;
-            System.Drawing.Image Thumbnail = null;
+            string ThumbnailLink;
+            System.Drawing.Image Thumbnail;
 
             if (ThumbnailDetails != null)
             {
@@ -80,11 +104,8 @@ namespace Youtube
                 {
                     ThumbnailLink.Replace("webp", "png");
                 }
-               
-            }
 
-            if (ThumbnailDetails != null)
-            {
+
                 //this.SearchQuery.Text = ThumbnailDetails.Url;
                 Thumbnail = await getThumbnail(ThumbnailLink);
                 var resize = new Bitmap(Thumbnail_Holder.Width, Thumbnail_Holder.Height);
@@ -95,39 +116,156 @@ namespace Youtube
                 this.Thumbnail_Holder.Image = resize;
 
             }
+
             Title.Text = video.Title;
-            this.Download_Button.Visible = true;
-            this.AudioDownload.Visible = true;
+            this.DownloadButton.Visible = true;
             this.Thumbnail_Holder.Visible = true;
             this.Title.Visible = true;
             this.LoadingText.Visible = false;
 
+
+
+            var Manifest = await client.Videos.Streams.GetManifestAsync(CurrentVideo.Url);
+
+            videoStreams = Manifest.GetVideoOnlyStreams().ToList();
+
+            foreach (var stream in videoStreams)
+            {
+                string streamData = stream.ToString();
+                this.VideoOptions.Items.Add(streamData);
+            }
+            this.VideoOptions.Items.Add("No Option");
+
+            audioStreams = Manifest.GetAudioOnlyStreams().ToList();
+
+            foreach (var stream in audioStreams)
+            {
+                string streamData = stream.ToString() + " " + stream.AudioCodec + " " + stream.Bitrate;
+                this.AudioOptions.Items.Add(streamData);
+            }
+            this.AudioOptions.Items.Add("No Option");
+
         }
 
-        private async void Download_Button_Click(object sender, EventArgs e)
+
+
+
+
+        private void VideoOptions_SelectedIndexChanged(object sender, EventArgs e)
         {
-            string Url = CurrentVideo.Url;
-            string VideoName = CurrentVideo.Title;
-            var Manifest = await client.Videos.Streams.GetManifestAsync(Url);
-            var thing = Manifest.GetMuxedStreams().FirstOrDefault();
-            if (!Directory.Exists("./Videos"))
-            {
-                Directory.CreateDirectory("Videos");
-            }
-            await client.Videos.Streams.DownloadAsync(thing, "./Videos\\" + VideoName.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "") + ".mp4");
+            selectedVideoIndex = this.VideoOptions.SelectedIndex;
+
         }
 
-        private async void AudioDownload_Click(object sender, EventArgs e)
+        private void AudioOptions_SelectedIndexChanged(object sender, EventArgs e)
         {
-            string Url = CurrentVideo.Url;
-            string VideoName = CurrentVideo.Title;
-            var Manifest = await client.Videos.Streams.GetManifestAsync(Url);
-            var thing = Manifest.GetAudioOnlyStreams().FirstOrDefault();
-            if (!Directory.Exists("./Audios"))
+            selectedAudioIndex = this.AudioOptions.SelectedIndex;
+
+        }
+
+        private async void DownloadButton_Click(object sender, EventArgs e)
+        {
+            var selectedVideoStream = selectedVideoIndex >= 0 && selectedVideoIndex < videoStreams.Count ? videoStreams[selectedVideoIndex] : null;
+            var selectedAudioStream = selectedAudioIndex >= 0 && selectedAudioIndex < audioStreams.Count ? audioStreams[selectedAudioIndex] : null;
+
+
+            string AudioPath = $"./Audios/{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.mp3";
+            string VideoPath = $"./Videos/{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.mp4";
+
+            var progress = new Progress<double>(p =>
             {
-                Directory.CreateDirectory("Audios");
+                // p is a value between 0.0 and 1.0
+                this.downloadProgressBar.Invoke(() =>
+                {
+                    this.downloadProgressBar.Value = (int)(p * 100);
+                });
+            });
+
+            DownloadProgress.Text = "Downloading video...";
+            if (selectedVideoStream != null && selectedAudioStream != null)
+            {
+
+                var VideoProg = new Progress<double>(p =>
+                {
+                    // p is a value between 0.0 and 1.0
+                    this.downloadProgressBar.Invoke(() =>
+                    {
+                        this.downloadProgressBar.Value = (int)(p * 100);
+                    });
+                });
+                var AudioProg = new Progress<double>(p =>
+                {
+                    // p is a value between 0.0 and 1.0
+                    this.downloadProgressBar.Invoke(() =>
+                    {
+                        this.downloadProgressBar.Value = (int)(p * 100);
+                    });
+                });
+
+                await this.client.Videos.Streams.DownloadAsync(selectedVideoStream, $"./Temp/CurrentVideoOnly{selectedVideoStream.Container.Name}", VideoProg);
+
+                DownloadProgress.Text = "Downloading audio...";
+                await this.client.Videos.Streams.DownloadAsync(selectedAudioStream, $"./Temp/CurrentAudioOnly{selectedAudioStream.Container.Name}", AudioProg);
+
+                DownloadProgress.Text = "Muxing files...";
+                await FFMpegArguments.FromFileInput($"./Temp/CurrentVideoOnly{selectedVideoStream.Container.Name}").
+                    AddFileInput($"./Temp/CurrentAudioOnly{selectedAudioStream.Container.Name}").
+                    OutputToFile(VideoPath, true,
+                    options => options
+                    .WithVideoCodec("copy")
+                    .WithAudioCodec("libmp3lame")).NotifyOnProgress(percent =>
+                    {
+                        // percent is a double between 0.0 and 1.0
+                        this.downloadProgressBar.Invoke(() =>
+                        {
+                            if ((int)(percent * .01) > 100)
+                            {
+                                this.downloadProgressBar.Value = 100;
+                            }
+                            else
+                                this.downloadProgressBar.Value = (int)(percent * .01);
+                        });
+                    }, TimeSpan.FromMilliseconds(500)) // update every 500ms
+
+                    .ProcessAsynchronously();
+                File.Delete($"./Temp/CurrentVideoOnly{selectedVideoStream.Container.Name}");
+                DownloadProgress.Text = "Finished!";
             }
-            await client.Videos.Streams.DownloadAsync(thing, "./Audios\\" + VideoName.Replace("|","").Replace("\"", "").Replace("&","").Replace("\\","") + ".mp3");
+            else if (selectedVideoStream != null)
+            {
+                await this.client.Videos.Streams.DownloadAsync(selectedVideoStream, $"./Videos/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedVideoStream.Container.Name}");
+                if (File.Exists(VideoPath))
+                {
+                    File.Delete(VideoPath);
+                }
+                DownloadProgress.Text = "Applying Codec...";
+
+                await FFMpegArguments.FromFileInput($"./Videos/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedVideoStream.Container.Name}").
+                    OutputToFile(VideoPath, true,
+                    options => options.WithVideoCodec("copy"))
+                    .ProcessAsynchronously();
+                File.Delete($"./Videos/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedVideoStream.Container.Name}");
+
+            }
+
+            else if (selectedAudioStream != null)
+            {
+                DownloadProgress.Text = "Downloading audio...";
+                await this.client.Videos.Streams.DownloadAsync(selectedAudioStream, $"./Audios/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedAudioStream.Container.Name}");
+                if (File.Exists(AudioPath))
+                {
+                    File.Delete(AudioPath);
+                }
+                DownloadProgress.Text = "Applying Codec...";
+                await FFMpegArguments.FromFileInput($"./Audios/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedAudioStream.Container.Name}").
+                    OutputToFile(AudioPath, true,
+                    options => options.WithAudioCodec("libmp3lame"))
+                    .ProcessAsynchronously();
+                File.Delete($"./Audios/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedAudioStream.Container.Name}");
+            }
+
+            this.downloadProgressBar.Value = 0;
+
         }
     }
 }
