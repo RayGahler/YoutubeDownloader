@@ -18,6 +18,8 @@ namespace Youtube
         private int selectedAudioIndex = -1;
         List<VideoOnlyStreamInfo> videoStreams;
         List<AudioOnlyStreamInfo> audioStreams;
+        string audioSavePath;
+        string videoSavePath;
         public Form1()
         {
             InitializeComponent();
@@ -27,6 +29,12 @@ namespace Youtube
             this.Title.Visible = false;
             this.LoadingText.Text = "Loading";
             this.LoadingText.Visible = false;
+
+            this.audioSavePath = Directory.GetCurrentDirectory() + "/Audios/";
+            this.videoSavePath = Directory.GetCurrentDirectory() + "/Videos/";
+
+            this.AudioSaveDirectory.Text = audioSavePath;
+            this.VideoSaveDirectory.Text = videoSavePath;
 
 
 
@@ -78,9 +86,13 @@ namespace Youtube
             this.DownloadButton.Visible = false;
             this.Thumbnail_Holder.Visible = false;
             this.Title.Visible = false;
+            this.AuthorText.Visible = false;
             this.LoadingText.Visible = true;
             this.VideoOptions.Items.Clear();
             this.AudioOptions.Items.Clear();
+
+            this.VideoOptions.Items.Add("Loading...");
+            this.AudioOptions.Items.Add("Loading...");
 
             string SearchQuery = this.SearchQuery.Text;
 
@@ -117,7 +129,9 @@ namespace Youtube
 
             }
 
-            Title.Text = video.Title;
+            this.Title.Text = video.Title;
+            this.AuthorText.Text = video.Author.ToString();
+            this.DurationText.Text = video.Duration.ToString();
             this.DownloadButton.Visible = true;
             this.Thumbnail_Holder.Visible = true;
             this.Title.Visible = true;
@@ -128,6 +142,11 @@ namespace Youtube
             var Manifest = await client.Videos.Streams.GetManifestAsync(CurrentVideo.Url);
 
             videoStreams = Manifest.GetVideoOnlyStreams().ToList();
+
+            this.VideoOptions.Items.Clear();
+            this.AudioOptions.Items.Clear();
+            this.SelectedAudioOption.Text = "No Option";
+            this.SelectedVideoOption.Text = "No Option";
 
             foreach (var stream in videoStreams)
             {
@@ -154,12 +173,14 @@ namespace Youtube
         private void VideoOptions_SelectedIndexChanged(object sender, EventArgs e)
         {
             selectedVideoIndex = this.VideoOptions.SelectedIndex;
+            this.SelectedVideoOption.Text = VideoOptions.Items[selectedVideoIndex].ToString();
 
         }
 
         private void AudioOptions_SelectedIndexChanged(object sender, EventArgs e)
         {
             selectedAudioIndex = this.AudioOptions.SelectedIndex;
+            this.SelectedAudioOption.Text = AudioOptions.Items[selectedAudioIndex].ToString();
 
         }
 
@@ -169,8 +190,13 @@ namespace Youtube
             var selectedAudioStream = selectedAudioIndex >= 0 && selectedAudioIndex < audioStreams.Count ? audioStreams[selectedAudioIndex] : null;
 
 
-            string AudioPath = $"./Audios/{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.mp3";
-            string VideoPath = $"./Videos/{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.mp4";
+            string AudioPath = $"{audioSavePath}/{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.mp3";
+            string VideoPath = $"{videoSavePath}/{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.mp4";
+
+            if(AudioPath == VideoPath)
+            {
+                throw (new Exception("Sigma"));
+            }
 
             var progress = new Progress<double>(p =>
             {
@@ -242,8 +268,23 @@ namespace Youtube
 
                 await FFMpegArguments.FromFileInput($"./Videos/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedVideoStream.Container.Name}").
                     OutputToFile(VideoPath, true,
-                    options => options.WithVideoCodec("copy"))
+                    options => options.WithVideoCodec("copy")).NotifyOnProgress(percent =>
+                    {
+                        // percent is a double between 0.0 and 1.0
+                        this.downloadProgressBar.Invoke(() =>
+                        {
+                            if ((int)(percent * .01) > 100)
+                            {
+                                this.downloadProgressBar.Value = 100;
+                            }
+                            else
+                                this.downloadProgressBar.Value = (int)(percent * .01);
+                        });
+                    }, TimeSpan.FromMilliseconds(500)) // update every 500ms
+
                     .ProcessAsynchronously();
+                DownloadProgress.Text = "Finished!";
+
                 File.Delete($"./Videos/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedVideoStream.Container.Name}");
 
             }
@@ -259,7 +300,19 @@ namespace Youtube
                 DownloadProgress.Text = "Applying Codec...";
                 await FFMpegArguments.FromFileInput($"./Audios/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedAudioStream.Container.Name}").
                     OutputToFile(AudioPath, true,
-                    options => options.WithAudioCodec("libmp3lame"))
+                    options => options.WithAudioCodec("libmp3lame")).NotifyOnProgress(percent =>
+                    {
+                        // percent is a double between 0.0 and 1.0
+                        this.downloadProgressBar.Invoke(() =>
+                        {
+                            if ((int)(percent * .01) > 100)
+                            {
+                                this.downloadProgressBar.Value = 100;
+                            }
+                            else
+                                this.downloadProgressBar.Value = (int)(percent * .01);
+                        });
+                    }, TimeSpan.FromMilliseconds(500))
                     .ProcessAsynchronously();
                 File.Delete($"./Audios/Temp{CurrentVideo.Title.Replace("|", "").Replace("\"", "").Replace("&", "").Replace("\\", "")}.{selectedAudioStream.Container.Name}");
             }
@@ -267,5 +320,36 @@ namespace Youtube
             this.downloadProgressBar.Value = 0;
 
         }
+
+        private void ChangeFileLocation_Click(object sender, EventArgs e)
+        {
+            DialogResult result = folderBrowserDialog1.ShowDialog();
+
+            if (result != DialogResult.OK)
+            {
+                return;
+            }
+
+            this.audioSavePath = folderBrowserDialog1.SelectedPath;
+            this.videoSavePath = folderBrowserDialog1.SelectedPath;
+
+            this.AudioSaveDirectory.Text = audioSavePath;
+        }
+
+        private void ChangeVideoFileLocation_Click(object sender, EventArgs e)
+        {
+            DialogResult result = folderBrowserDialog1.ShowDialog();
+
+            if (result != DialogResult.OK)
+            {
+                return;
+            }
+
+            this.videoSavePath = folderBrowserDialog1.SelectedPath;
+
+            this.VideoSaveDirectory.Text = videoSavePath;
+        }
+
+
     }
 }
